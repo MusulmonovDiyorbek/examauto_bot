@@ -66,20 +66,20 @@ function saveUser(user) {
   writeJson(usersDbPath, users);
 }
 
-// === START ===
+// === START (va qolgan barcha handlerlar) ===
+// ... Sizning eski handlerlaringiz o'zgarishsiz qoladi ...
 bot.start(ctx => {
-  const name = ctx.from.first_name || 'foydalanuvchi';
-  ctx.reply(
-    `Salom, ${name}!\nBu ExamAutoBot 🤖.\nQuyidagi tugmalar orqali ishni boshlang.`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('📝 Ro‘yxatdan o‘tish', 'REGISTER')],
-      [Markup.button.callback('🎮 Testni boshlash', 'PLAY')],
-      [Markup.button.callback('⚙️ Admin kirish', 'ADMIN_LOGIN')]
-    ])
-  );
+    const name = ctx.from.first_name || 'foydalanuvchi';
+    ctx.reply(
+      `Salom, ${name}!\nBu ExamAutoBot 🤖.\nQuyidagi tugmalar orqali ishni boshlang.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback('📝 Ro‘yxatdan o‘tish', 'REGISTER')],
+        [Markup.button.callback('🎮 Testni boshlash', 'PLAY')],
+        [Markup.button.callback('⚙️ Admin kirish', 'ADMIN_LOGIN')]
+      ])
+    );
 });
-
-// === /register va REGISTER action ===
+// /register va REGISTER action
 const handleRegister = (ctx) => {
     const id = ctx.from.id;
     const user = findUser(id);
@@ -92,22 +92,19 @@ const handleRegister = (ctx) => {
     if (ctx.callbackQuery) ctx.answerCbQuery();
     ctx.reply('Ismingizni kiriting:');
 };
-
 bot.command('register', handleRegister);
 bot.action('REGISTER', handleRegister);
 
-
-// === /admin va ADMIN_LOGIN action ===
+// /admin va ADMIN_LOGIN action
 const handleAdminLogin = (ctx) => {
     userState[ctx.from.id] = { mode: 'admin_login', awaitingAdminId: true };
     if (ctx.callbackQuery) ctx.answerCbQuery();
     ctx.reply('Admin ID ni kiriting:');
 }
-
 bot.command('admin', handleAdminLogin);
 bot.action('ADMIN_LOGIN', handleAdminLogin);
 
-// === ADMIN MENYU TUGMASI ===
+// ADMIN MENYU TUGMASI
 bot.action('ADMIN_MENU', ctx => {
     if (ctx.from.id !== ADMIN_ID) {
         ctx.answerCbQuery('❌ Faqat admin uchun.');
@@ -125,8 +122,7 @@ bot.action('ADMIN_MENU', ctx => {
     );
 });
 
-
-// === Barcha text xabarlar (bitta handler) ===
+// Barcha text xabarlar (bitta handler)
 bot.on('text', async ctx => {
   const id = ctx.from.id;
   const state = userState[id];
@@ -239,7 +235,7 @@ bot.on('text', async ctx => {
 });
 
 
-// === ADMIN SAVOL QO'SHISH MENYUSI va Fayl handlerlari ===
+// ADMIN SAVOL QO'SHISH MENYUSI va Fayl handlerlari
 bot.action('ADD_QUESTION_MENU', ctx => {
     if (ctx.from.id !== ADMIN_ID) {
         ctx.answerCbQuery('❌ Faqat admin savol qo‘sha oladi.');
@@ -327,7 +323,7 @@ bot.on(['document', 'photo'], async ctx => {
 });
 
 
-// === ADMIN LIST ACTIONS ===
+// ADMIN LIST ACTIONS
 bot.action('SHOW_USERS', ctx => {
   if (ctx.from.id !== ADMIN_ID) {
     ctx.answerCbQuery('❌ Faqat admin uchun.');
@@ -368,7 +364,7 @@ bot.action('CLEAR_QUESTIONS', ctx => {
 });
 
 
-// === KEYINGI SAVOLGA O'TISH FUNKSIYASI ===
+// KEYINGI SAVOLGA O'TISH FUNKSIYASI
 bot.action('NEXT_QUESTION', ctx => {
     const id = ctx.from.id;
     const state = userState[id];
@@ -395,7 +391,7 @@ bot.action('NEXT_QUESTION', ctx => {
 });
 
 
-// === /play va PLAY action ===
+// /play va PLAY action
 const handlePlay = (ctx) => {
     const id = ctx.from.id;
     const user = findUser(id);
@@ -422,11 +418,10 @@ const handlePlay = (ctx) => {
         Markup.inlineKeyboard([Markup.button.callback('✍️ Javob berish', `ANSWER_${id}`)])
     );
 }
-
 bot.command('play', handlePlay);
 bot.action('PLAY', handlePlay);
 
-// === Javob berish uchun inline tugma ===
+// Javob berish uchun inline tugma
 bot.action(/ANSWER_(.+)/, ctx => {
   const id = Number(ctx.match[1]);
   const state = userState[id]; 
@@ -449,9 +444,46 @@ bot.action(/ANSWER_(.+)/, ctx => {
 });
 
 
-// === Ishga tushirish ===
-bot.launch().then(() => console.log('✅ Bot ishga tushdi!'));
+// =========================================================================
+// !!! WEBHOOK UCHUN O'ZGARTIRILGAN ISHGA TUSHIRISH QISMI !!!
+// =========================================================================
+bot.catch((err, ctx) => {
+    console.error(`Opps, kutilmagan xato [${ctx.updateType}]:`, err);
+});
 
-// Graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const startWebhook = async () => {
+    // 1. Portni muhit o'zgaruvchisidan olish
+    // Render doimiy ravishda PORT o'zgaruvchisini o'rnatadi. 
+    const PORT = process.env.PORT || 3000; 
+
+    // 2. Render External Hostname'ni olish
+    // Render platformasi Web Service uchun bu o'zgaruvchini ta'minlaydi.
+    const HOSTNAME = process.env.RENDER_EXTERNAL_HOSTNAME;
+
+    if (!HOSTNAME) {
+        console.error("❌ RENDER_EXTERNAL_HOSTNAME topilmadi! Render Web Service'da joylashtirilganiga ishonch hosil qiling.");
+        // Agar Render bo'lmasa, Long Pollingda ishga tushirishga harakat qilamiz (Ehtiyot chorasi)
+        console.log("⚠️ Webhook o'rnatilmadi. Long Polling rejimida boshlanmoqda...");
+        return bot.launch();
+    }
+    
+    const WEBHOOK_URL = `https://${HOSTNAME}/webhook`;
+
+    try {
+        // 3. Telegramga Webhookni o'rnatish
+        await bot.telegram.setWebhook(WEBHOOK_URL);
+        console.log(`✅ Webhook o'rnatildi: ${WEBHOOK_URL}`);
+        
+        // 4. Serverni ishga tushirish (Telegraf Webhook serveri)
+        await bot.startWebhook('/webhook', null, PORT);
+        console.log(`✅ Bot serveri ishga tushdi va ${PORT} portida tinglamoqda.`);
+
+    } catch (e) {
+        console.error("❌ Bot ishga tushishida xato:", e.message);
+        // Xato yuz bersa, ishni to'xtatish
+        process.exit(1); 
+    }
+};
+
+// Webhook jarayonini ishga tushirish
+startWebhook();
